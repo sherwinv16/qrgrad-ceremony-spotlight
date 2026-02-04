@@ -3,6 +3,9 @@ import { persist } from 'zustand/middleware';
 import { Student, Section, CeremonyState } from '@/types/student';
 import { v4 as uuidv4 } from 'uuid';
 
+// Broadcast channel for cross-tab communication
+const BROADCAST_CHANNEL_NAME = 'qrgrad-ceremony-sync';
+
 interface CeremonyStore {
   // Students
   students: Student[];
@@ -32,6 +35,18 @@ interface CeremonyStore {
   
   // Reset
   resetCeremony: () => void;
+  
+  // Sync
+  broadcastUpdate: () => void;
+}
+
+// Create broadcast channel for cross-tab sync
+let broadcastChannel: BroadcastChannel | null = null;
+
+try {
+  broadcastChannel = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
+} catch (e) {
+  console.warn('BroadcastChannel not supported, falling back to localStorage events');
 }
 
 export const useCeremonyStore = create<CeremonyStore>()(
@@ -39,7 +54,7 @@ export const useCeremonyStore = create<CeremonyStore>()(
     (set, get) => ({
       students: [],
       sections: [
-        { id: 'section-a', name: 'Section A', order: 1, isActive: true, scanningEnabled: false },
+        { id: 'section-a', name: 'Section A', order: 1, isActive: false, scanningEnabled: false },
         { id: 'section-b', name: 'Section B', order: 2, isActive: false, scanningEnabled: false },
         { id: 'section-c', name: 'Section C', order: 3, isActive: false, scanningEnabled: false },
       ],
@@ -50,6 +65,22 @@ export const useCeremonyStore = create<CeremonyStore>()(
         activeSection: null,
       },
       walkedStudents: [],
+
+      broadcastUpdate: () => {
+        const state = get();
+        const syncData = {
+          type: 'CEREMONY_UPDATE',
+          ceremonyState: state.ceremonyState,
+          timestamp: Date.now(),
+        };
+        
+        if (broadcastChannel) {
+          broadcastChannel.postMessage(syncData);
+        }
+        
+        // Also use localStorage for fallback
+        localStorage.setItem('qrgrad-sync', JSON.stringify(syncData));
+      },
 
       addStudent: (studentData) => {
         const newStudent: Student = {
@@ -95,10 +126,15 @@ export const useCeremonyStore = create<CeremonyStore>()(
       },
 
       addSection: (name) => {
+        const currentSections = get().sections;
+        if (currentSections.length >= 50) {
+          console.warn('Maximum of 50 sections reached');
+          return;
+        }
         const newSection: Section = {
           id: uuidv4(),
           name,
-          order: get().sections.length + 1,
+          order: currentSections.length + 1,
           isActive: false,
           scanningEnabled: false,
         };
@@ -135,6 +171,8 @@ export const useCeremonyStore = create<CeremonyStore>()(
             isDisplaying: !!student,
           },
         }));
+        // Broadcast the update to other tabs (display page)
+        get().broadcastUpdate();
       },
 
       startCeremony: () => {
@@ -144,6 +182,7 @@ export const useCeremonyStore = create<CeremonyStore>()(
             ceremonyStarted: true,
           },
         }));
+        get().broadcastUpdate();
       },
 
       endCeremony: () => {
@@ -155,6 +194,7 @@ export const useCeremonyStore = create<CeremonyStore>()(
             isDisplaying: false,
           },
         }));
+        get().broadcastUpdate();
       },
 
       setActiveSection: (sectionId) => {
@@ -186,6 +226,7 @@ export const useCeremonyStore = create<CeremonyStore>()(
             activeSection: null,
           },
         }));
+        get().broadcastUpdate();
       },
     }),
     {
@@ -193,3 +234,33 @@ export const useCeremonyStore = create<CeremonyStore>()(
     }
   )
 );
+
+// Listen for updates from other tabs
+if (broadcastChannel) {
+  broadcastChannel.onmessage = (event) => {
+    if (event.data.type === 'CEREMONY_UPDATE') {
+      const store = useCeremonyStore.getState();
+      useCeremonyStore.setState({
+        ceremonyState: event.data.ceremonyState,
+      });
+    }
+  };
+}
+
+// Fallback: Listen for localStorage changes
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'qrgrad-sync' && event.newValue) {
+      try {
+        const data = JSON.parse(event.newValue);
+        if (data.type === 'CEREMONY_UPDATE') {
+          useCeremonyStore.setState({
+            ceremonyState: data.ceremonyState,
+          });
+        }
+      } catch (e) {
+        console.error('Error parsing sync data:', e);
+      }
+    }
+  });
+}

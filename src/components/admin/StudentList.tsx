@@ -8,6 +8,9 @@ import { Student } from '@/types/student';
 import { StudentForm } from './StudentForm';
 import { StudentQRCode } from './StudentQRCode';
 import { StudentPreview } from './StudentPreview';
+import { useToast } from '@/hooks/use-toast';
+
+const MAX_STUDENTS = 1000;
 
 export const StudentList = () => {
   const { students, deleteStudent } = useCeremonyStore();
@@ -16,6 +19,7 @@ export const StudentList = () => {
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [showQR, setShowQR] = useState<Student | null>(null);
   const [previewStudent, setPreviewStudent] = useState<Student | null>(null);
+  const { toast } = useToast();
 
   const filteredStudents = students.filter(
     (s) =>
@@ -33,6 +37,18 @@ export const StudentList = () => {
     setEditingStudent(null);
   };
 
+  const handleAddStudent = () => {
+    if (students.length >= MAX_STUDENTS) {
+      toast({
+        title: "Limit Reached",
+        description: `Maximum of ${MAX_STUDENTS} students allowed`,
+        variant: "destructive",
+      });
+      return;
+    }
+    setShowForm(true);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -40,15 +56,16 @@ export const StudentList = () => {
         <div>
           <h2 className="admin-header flex items-center gap-2">
             <GraduationCap className="w-6 h-6 text-gold" />
-            Students ({students.length})
+            Students ({students.length} / {MAX_STUDENTS})
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
             Manage graduate information and QR codes
           </p>
         </div>
         <Button
-          onClick={() => setShowForm(true)}
+          onClick={handleAddStudent}
           className="bg-gold hover:bg-gold-dark text-primary-foreground"
+          disabled={students.length >= MAX_STUDENTS}
         >
           <Plus className="w-4 h-4 mr-2" />
           Add Student

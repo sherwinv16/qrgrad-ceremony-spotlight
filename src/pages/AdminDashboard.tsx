@@ -10,7 +10,8 @@ import { QRScanner } from '@/components/scanner/QRScanner';
 import { useCeremonyStore } from '@/stores/ceremonyStore';
 import { useTextToSpeech } from '@/hooks/useTextToSpeech';
 import { useToast } from '@/hooks/use-toast';
-import { ExternalLink, GraduationCap, Settings, Scan, History } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { ExternalLink, GraduationCap, Settings, Scan, History, LogOut } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const AdminDashboard = () => {
@@ -24,6 +25,7 @@ const AdminDashboard = () => {
   } = useCeremonyStore();
   const { speakGraduate } = useTextToSpeech();
   const { toast } = useToast();
+  const { signOut, user } = useAuth();
 
   const activeSection = sections.find(s => s.id === ceremonyState.activeSection);
   const isScanningEnabled = activeSection?.scanningEnabled || false;
@@ -83,11 +85,24 @@ const AdminDashboard = () => {
       markStudentWalked(student.id);
       await speakGraduate(student.name, student.awards);
       
+      toast({
+        title: "Student Displayed",
+        description: `${student.name} is now showing on the display`,
+      });
+      
       setTimeout(() => {
         setCurrentStudent(null);
       }, 8000);
     }
-  }, [setCurrentStudent, markStudentWalked, speakGraduate]);
+  }, [setCurrentStudent, markStudentWalked, speakGraduate, toast]);
+
+  const handleSignOut = async () => {
+    await signOut();
+    toast({
+      title: "Signed Out",
+      description: "You have been logged out successfully",
+    });
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -103,12 +118,22 @@ const AdminDashboard = () => {
               <p className="text-xs text-muted-foreground">Admin Dashboard</p>
             </div>
           </div>
-          <Link to="/display" target="_blank">
-            <Button variant="outline" className="gap-2">
-              <ExternalLink className="w-4 h-4" />
-              Open Display
+          <div className="flex items-center gap-3">
+            {user && (
+              <span className="text-sm text-muted-foreground hidden sm:block">
+                {user.email}
+              </span>
+            )}
+            <Link to="/display" target="_blank">
+              <Button variant="outline" className="gap-2">
+                <ExternalLink className="w-4 h-4" />
+                <span className="hidden sm:inline">Open Display</span>
+              </Button>
+            </Link>
+            <Button variant="ghost" size="icon" onClick={handleSignOut} title="Sign out">
+              <LogOut className="w-4 h-4" />
             </Button>
-          </Link>
+          </div>
         </div>
       </header>
 
