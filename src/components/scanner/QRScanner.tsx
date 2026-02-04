@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { motion } from 'framer-motion';
-import { Camera, CameraOff, Scan } from 'lucide-react';
+import { Camera, CameraOff, Scan, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface QRScannerProps {
@@ -12,13 +12,16 @@ interface QRScannerProps {
 export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastScanned, setLastScanned] = useState<string | null>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const scanCooldownRef = useRef<NodeJS.Timeout | null>(null);
 
   const startScanner = useCallback(async () => {
     if (!containerRef.current || scannerRef.current) return;
 
     try {
+      setError(null);
       const scanner = new Html5Qrcode('qr-scanner-container');
       scannerRef.current = scanner;
 
@@ -29,24 +32,43 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
           qrbox: { width: 250, height: 250 },
         },
         (decodedText) => {
+          // Prevent duplicate scans within 3 seconds
+          if (lastScanned === decodedText) return;
+          
+          if (scanCooldownRef.current) {
+            clearTimeout(scanCooldownRef.current);
+          }
+          
+          setLastScanned(decodedText);
           onScan(decodedText);
+          
           // Play success feedback
           if (navigator.vibrate) {
             navigator.vibrate(200);
           }
+          
+          // Reset cooldown after 3 seconds
+          scanCooldownRef.current = setTimeout(() => {
+            setLastScanned(null);
+          }, 3000);
         },
         () => {
-          // Ignore scan errors
+          // Ignore scan errors (no QR found)
         }
       );
 
       setIsScanning(true);
-      setError(null);
-    } catch (err) {
-      setError('Failed to start camera. Please ensure camera permissions are granted.');
+    } catch (err: any) {
       console.error('Scanner error:', err);
+      if (err?.message?.includes('Permission')) {
+        setError('Camera permission denied. Please allow camera access in your browser settings.');
+      } else if (err?.message?.includes('NotFoundError')) {
+        setError('No camera found. Please connect a camera and try again.');
+      } else {
+        setError('Failed to start camera. Please ensure camera permissions are granted.');
+      }
     }
-  }, [onScan]);
+  }, [onScan, lastScanned]);
 
   const stopScanner = useCallback(async () => {
     if (scannerRef.current) {
@@ -54,6 +76,7 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
         await scannerRef.current.stop();
         scannerRef.current = null;
         setIsScanning(false);
+        setError(null);
       } catch (err) {
         console.error('Error stopping scanner:', err);
       }
@@ -62,6 +85,9 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
 
   useEffect(() => {
     return () => {
+      if (scanCooldownRef.current) {
+        clearTimeout(scanCooldownRef.current);
+      }
       stopScanner();
     };
   }, [stopScanner]);
@@ -86,8 +112,14 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
 
       {!isEnabled && (
         <div className="text-center py-8 text-muted-foreground">
-          <CameraOff className="w-12 h-12 mx-auto mb-4 opacity-50" />
-          <p>Enable scanning for a section to start</p>
+          <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
+          <p className="font-medium mb-2">Scanner Disabled</p>
+          <p className="text-sm">To enable scanning:</p>
+          <ol className="text-sm mt-2 text-left max-w-xs mx-auto space-y-1">
+            <li>1. Go to the "Sections" tab</li>
+            <li>2. Click "Set Active" on a section</li>
+            <li>3. Click the toggle icon to enable scanning</li>
+          </ol>
         </div>
       )}
 
@@ -96,16 +128,32 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
           <div 
             id="qr-scanner-container" 
             ref={containerRef}
-            className="w-full aspect-square max-w-sm mx-auto rounded-lg overflow-hidden bg-muted"
-          />
+            className="w-full aspect-square max-w-sm mx-auto rounded-lg overflow-hidden bg-muted relative"
+          >
+            {!isScanning && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <CameraOff className="w-12 h-12 text-muted-foreground/50" />
+              </div>
+            )}
+          </div>
 
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="p-4 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive"
+              className="p-4 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm"
             >
               {error}
+            </motion.div>
+          )}
+
+          {lastScanned && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm text-center"
+            >
+              ✓ Scanned successfully
             </motion.div>
           )}
 
