@@ -17,6 +17,7 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
   const containerIdRef = useRef<string>(`qr-scanner-${Date.now()}`);
   const isMountedRef = useRef<boolean>(true);
   const scanCooldownRef = useRef<NodeJS.Timeout | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   const startScanner = useCallback(async () => {
     const containerId = containerIdRef.current;
@@ -88,13 +89,6 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
           await scanner.stop();
         }
         
-        // Clear the container manually to prevent React DOM conflicts
-        const containerId = containerIdRef.current;
-        const containerElement = document.getElementById(containerId);
-        if (containerElement) {
-          containerElement.innerHTML = '';
-        }
-        
         if (isMountedRef.current) {
           setIsScanning(false);
           setError(null);
@@ -103,11 +97,6 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
         console.error('Error stopping scanner:', err);
         // Even on error, try to clean up
         scannerRef.current = null;
-        const containerId = containerIdRef.current;
-        const containerElement = document.getElementById(containerId);
-        if (containerElement) {
-          containerElement.innerHTML = '';
-        }
         if (isMountedRef.current) {
           setIsScanning(false);
         }
@@ -115,8 +104,22 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
     }
   }, []);
 
+  // Create scanner container on mount, outside of React's control
   useEffect(() => {
     isMountedRef.current = true;
+    const containerId = containerIdRef.current;
+    
+    // Create the scanner container element manually
+    if (wrapperRef.current) {
+      const existingContainer = document.getElementById(containerId);
+      if (!existingContainer) {
+        const container = document.createElement('div');
+        container.id = containerId;
+        container.style.width = '100%';
+        container.style.height = '100%';
+        wrapperRef.current.appendChild(container);
+      }
+    }
     
     return () => {
       isMountedRef.current = false;
@@ -132,13 +135,12 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
         if (scanner.isScanning) {
           scanner.stop().catch(() => {});
         }
-        
-        // Clear container
-        const containerId = containerIdRef.current;
-        const containerElement = document.getElementById(containerId);
-        if (containerElement) {
-          containerElement.innerHTML = '';
-        }
+      }
+      
+      // Remove the manually created container
+      const containerElement = document.getElementById(containerId);
+      if (containerElement && containerElement.parentNode) {
+        containerElement.parentNode.removeChild(containerElement);
       }
     };
   }, []);
@@ -148,8 +150,6 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
       stopScanner();
     }
   }, [isEnabled, isScanning, stopScanner]);
-
-  const containerId = containerIdRef.current;
 
   return (
     <div className="admin-card">
@@ -178,15 +178,20 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
 
       {isEnabled && (
         <div className="space-y-4">
-          <div
-            id={containerId}
-            className="w-full aspect-square max-w-sm mx-auto rounded-lg overflow-hidden bg-muted relative"
-          >
+          {/* Wrapper for scanner - the actual container is created manually via useEffect */}
+          <div className="w-full aspect-square max-w-sm mx-auto rounded-lg overflow-hidden bg-muted relative">
+            {/* Placeholder shown when not scanning */}
             {!isScanning && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <CameraOff className="w-12 h-12 text-muted-foreground/50" />
               </div>
             )}
+            {/* Scanner container wrapper - content managed outside React */}
+            <div 
+              ref={wrapperRef} 
+              className="absolute inset-0"
+              style={{ display: isScanning ? 'block' : 'none' }}
+            />
           </div>
 
           {error && (
