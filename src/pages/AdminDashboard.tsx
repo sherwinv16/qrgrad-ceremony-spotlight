@@ -31,6 +31,7 @@ const AdminDashboard = () => {
   const isScanningEnabled = activeSection?.scanningEnabled || false;
 
   const handleQRScan = useCallback(async (qrCode: string) => {
+    console.log('[AdminDashboard] QR Scanned:', qrCode);
     const student = getStudentByQR(qrCode);
     
     if (!student) {
@@ -60,7 +61,8 @@ const AdminDashboard = () => {
       return;
     }
 
-    // Display student
+    // Display student - this broadcasts to display page
+    console.log('[AdminDashboard] Setting current student:', student.name);
     setCurrentStudent(student);
     markStudentWalked(student.id);
     
@@ -74,13 +76,16 @@ const AdminDashboard = () => {
 
     // Clear after delay
     setTimeout(() => {
+      console.log('[AdminDashboard] Clearing current student');
       setCurrentStudent(null);
     }, 8000);
   }, [getStudentByQR, setCurrentStudent, markStudentWalked, speakGraduate, toast, activeSection]);
 
   const handleManualSelect = useCallback(async (studentId: string) => {
+    console.log('[AdminDashboard] Manual select:', studentId);
     const student = useCeremonyStore.getState().students.find(s => s.id === studentId);
     if (student) {
+      console.log('[AdminDashboard] Setting current student (manual):', student.name);
       setCurrentStudent(student);
       markStudentWalked(student.id);
       await speakGraduate(student.name, student.awards);
@@ -91,6 +96,7 @@ const AdminDashboard = () => {
       });
       
       setTimeout(() => {
+        console.log('[AdminDashboard] Clearing current student (manual)');
         setCurrentStudent(null);
       }, 8000);
     }

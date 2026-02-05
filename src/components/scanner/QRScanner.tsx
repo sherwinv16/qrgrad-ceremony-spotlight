@@ -20,6 +20,17 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
   const containerIdRef = useRef<string>(`qr-scanner-${++scannerInstanceId}`);
   const isMountedRef = useRef<boolean>(true);
   const scanCooldownRef = useRef<NodeJS.Timeout | null>(null);
+  const lastScannedRef = useRef<string | null>(null);
+  const onScanRef = useRef(onScan);
+
+  // Keep refs in sync with latest values
+  useEffect(() => {
+    onScanRef.current = onScan;
+  }, [onScan]);
+
+  useEffect(() => {
+    lastScannedRef.current = lastScanned;
+  }, [lastScanned]);
 
   const startScanner = useCallback(async () => {
     const containerId = containerIdRef.current;
@@ -52,15 +63,18 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
           qrbox: { width: 250, height: 250 },
         },
         (decodedText) => {
-          // Prevent duplicate scans within 3 seconds
-          if (lastScanned === decodedText) return;
+          // Prevent duplicate scans within 3 seconds - use ref to avoid stale closure
+          if (lastScannedRef.current === decodedText) return;
           
           if (scanCooldownRef.current) {
             clearTimeout(scanCooldownRef.current);
           }
           
           setLastScanned(decodedText);
-          onScan(decodedText);
+          lastScannedRef.current = decodedText;
+          
+          // Use ref to call latest callback
+          onScanRef.current(decodedText);
           
           // Play success feedback
           if (navigator.vibrate) {
@@ -70,6 +84,7 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
           // Reset cooldown after 3 seconds
           scanCooldownRef.current = setTimeout(() => {
             setLastScanned(null);
+            lastScannedRef.current = null;
           }, 3000);
         },
         () => {
@@ -93,7 +108,7 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
         }
       }
     }
-  }, [onScan, lastScanned]);
+  }, []);
 
   const stopScanner = useCallback(async () => {
     if (scannerRef.current) {
