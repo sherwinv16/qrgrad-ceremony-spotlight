@@ -10,6 +10,7 @@ interface CeremonyStore {
   // Students
   students: Student[];
   addStudent: (student: Omit<Student, 'id' | 'qrCode' | 'hasWalked' | 'createdAt'>) => Student;
+  addStudentBulk: (students: Omit<Student, 'id' | 'qrCode' | 'hasWalked' | 'createdAt'>[]) => number;
   updateStudent: (id: string, updates: Partial<Student>) => void;
   deleteStudent: (id: string) => void;
   getStudentByQR: (qrCode: string) => Student | undefined;
@@ -92,6 +93,24 @@ export const useCeremonyStore = create<CeremonyStore>()(
         };
         set((state) => ({ students: [...state.students, newStudent] }));
         return newStudent;
+      },
+
+      addStudentBulk: (studentsData) => {
+        const currentCount = get().students.length;
+        const maxToAdd = Math.min(studentsData.length, 1000 - currentCount);
+        
+        if (maxToAdd <= 0) return 0;
+        
+        const newStudents: Student[] = studentsData.slice(0, maxToAdd).map(studentData => ({
+          ...studentData,
+          id: uuidv4(),
+          qrCode: `QRGRAD-${uuidv4()}`,
+          hasWalked: false,
+          createdAt: new Date(),
+        }));
+        
+        set((state) => ({ students: [...state.students, ...newStudents] }));
+        return newStudents.length;
       },
 
       updateStudent: (id, updates) => {

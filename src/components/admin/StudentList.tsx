@@ -8,6 +8,7 @@ import { Student } from '@/types/student';
 import { StudentForm } from './StudentForm';
 import { StudentQRCode } from './StudentQRCode';
 import { StudentPreview } from './StudentPreview';
+import { CSVImport } from './CSVImport';
 import { useToast } from '@/hooks/use-toast';
 
 const MAX_STUDENTS = 1000;
@@ -62,14 +63,17 @@ export const StudentList = () => {
             Manage graduate information and QR codes
           </p>
         </div>
-        <Button
-          onClick={handleAddStudent}
-          className="bg-gold hover:bg-gold-dark text-primary-foreground"
-          disabled={students.length >= MAX_STUDENTS}
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Student
-        </Button>
+        <div className="flex gap-2">
+          <CSVImport />
+          <Button
+            onClick={handleAddStudent}
+            className="bg-gold hover:bg-gold-dark text-primary-foreground"
+            disabled={students.length >= MAX_STUDENTS}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Student
+          </Button>
+        </div>
       </div>
 
       {/* Search */}
