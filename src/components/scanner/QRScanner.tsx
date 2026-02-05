@@ -9,23 +9,39 @@ interface QRScannerProps {
   isEnabled: boolean;
 }
 
+// Use a stable ID that persists across renders
+let scannerInstanceId = 0;
+
 export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastScanned, setLastScanned] = useState<string | null>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const containerIdRef = useRef<string>(`qr-scanner-${Date.now()}`);
+  const containerIdRef = useRef<string>(`qr-scanner-${++scannerInstanceId}`);
   const isMountedRef = useRef<boolean>(true);
   const scanCooldownRef = useRef<NodeJS.Timeout | null>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
 
   const startScanner = useCallback(async () => {
     const containerId = containerIdRef.current;
     const containerElement = document.getElementById(containerId);
-    if (!containerElement || scannerRef.current) return;
+    
+    if (!containerElement) {
+      console.error('Scanner container not found:', containerId);
+      setError('Scanner container not found. Please refresh the page.');
+      return;
+    }
+    
+    if (scannerRef.current) {
+      console.log('Scanner already running');
+      return;
+    }
 
     try {
       setError(null);
+      
+      // Clear any existing content in the container
+      containerElement.innerHTML = '';
+      
       const scanner = new Html5Qrcode(containerId);
       scannerRef.current = scanner;
 
@@ -66,6 +82,7 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
       }
     } catch (err: any) {
       console.error('Scanner error:', err);
+      scannerRef.current = null;
       if (isMountedRef.current) {
         if (err?.message?.includes('Permission')) {
           setError('Camera permission denied. Please allow camera access in your browser settings.');
@@ -89,6 +106,13 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
           await scanner.stop();
         }
         
+        // Clear the container after stopping
+        const containerId = containerIdRef.current;
+        const containerElement = document.getElementById(containerId);
+        if (containerElement) {
+          containerElement.innerHTML = '';
+        }
+        
         if (isMountedRef.current) {
           setIsScanning(false);
           setError(null);
@@ -97,6 +121,13 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
         console.error('Error stopping scanner:', err);
         // Even on error, try to clean up
         scannerRef.current = null;
+        
+        const containerId = containerIdRef.current;
+        const containerElement = document.getElementById(containerId);
+        if (containerElement) {
+          containerElement.innerHTML = '';
+        }
+        
         if (isMountedRef.current) {
           setIsScanning(false);
         }
@@ -104,22 +135,8 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
     }
   }, []);
 
-  // Create scanner container on mount, outside of React's control
   useEffect(() => {
     isMountedRef.current = true;
-    const containerId = containerIdRef.current;
-    
-    // Create the scanner container element manually
-    if (wrapperRef.current) {
-      const existingContainer = document.getElementById(containerId);
-      if (!existingContainer) {
-        const container = document.createElement('div');
-        container.id = containerId;
-        container.style.width = '100%';
-        container.style.height = '100%';
-        wrapperRef.current.appendChild(container);
-      }
-    }
     
     return () => {
       isMountedRef.current = false;
@@ -136,12 +153,6 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
           scanner.stop().catch(() => {});
         }
       }
-      
-      // Remove the manually created container
-      const containerElement = document.getElementById(containerId);
-      if (containerElement && containerElement.parentNode) {
-        containerElement.parentNode.removeChild(containerElement);
-      }
     };
   }, []);
 
@@ -150,6 +161,8 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
       stopScanner();
     }
   }, [isEnabled, isScanning, stopScanner]);
+
+  const containerId = containerIdRef.current;
 
   return (
     <div className="admin-card">
@@ -178,20 +191,23 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
 
       {isEnabled && (
         <div className="space-y-4">
-          {/* Wrapper for scanner - the actual container is created manually via useEffect */}
-          <div className="w-full aspect-square max-w-sm mx-auto rounded-lg overflow-hidden bg-muted relative">
-            {/* Placeholder shown when not scanning */}
+          {/* Scanner container - always rendered, html5-qrcode manages content */}
+          <div className="w-full aspect-square max-w-sm mx-auto rounded-lg overflow-hidden bg-muted relative" style={{ minHeight: '300px' }}>
+            {/* Placeholder shown when not scanning - positioned behind scanner */}
             {!isScanning && (
-              <div className="absolute inset-0 flex items-center justify-center">
+              <div className="absolute inset-0 flex items-center justify-center z-0">
                 <CameraOff className="w-12 h-12 text-muted-foreground/50" />
               </div>
             )}
-            {/* Scanner container wrapper - content managed outside React */}
+            {/* Scanner container - html5-qrcode will inject video here */}
             <div 
-              ref={wrapperRef} 
-              className="absolute inset-0"
-              style={{ display: isScanning ? 'block' : 'none' }}
-            />
+              id={containerId}
+              className="absolute inset-0 z-10"
+              style={{ 
+                width: '100%', 
+                height: '100%',
+              }}
+            ></div>
           </div>
 
           {error && (
