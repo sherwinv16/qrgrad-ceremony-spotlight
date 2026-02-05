@@ -79,16 +79,16 @@ export const CeremonyDisplay = ({ student, onComplete }: CeremonyDisplayProps) =
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, y: -50 }}
             transition={{ duration: 0.8 }}
-            className="relative z-10 flex flex-col items-center justify-center text-center px-8 max-w-6xl"
+            className="relative z-10 flex flex-row items-center justify-center gap-16 px-12 max-w-7xl w-full"
           >
             {/* Photo */}
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.2, duration: 0.6, ease: "easeOut" }}
-              className="mb-12"
+              className="flex-shrink-0"
             >
-              <div className="photo-frame w-56 h-56 md:w-72 md:h-72 lg:w-80 lg:h-80 animate-glow-pulse">
+              <div className="photo-frame w-72 h-72 md:w-96 md:h-96 lg:w-[450px] lg:h-[450px] animate-glow-pulse">
                 <img
                   src={student.photo || '/placeholder.svg'}
                   alt={student.name}
@@ -97,47 +97,51 @@ export const CeremonyDisplay = ({ student, onComplete }: CeremonyDisplayProps) =
               </div>
             </motion.div>
 
-            {/* Name */}
-            <motion.div
-              initial={{ y: 50, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.5, duration: 0.8, ease: "easeOut" }}
-              className="mb-6"
-            >
-              <h1 className="ceremony-name text-balance">{student.name}</h1>
-            </motion.div>
-
-            {/* Section */}
-            <motion.div
-              initial={{ y: 30, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.8, duration: 0.6 }}
-              className="mb-8"
-            >
-              <p className="ceremony-subtitle">{student.section}</p>
-            </motion.div>
-
-            {/* Awards */}
-            {student.awards && student.awards.length > 0 && (
+            {/* Right side: Name, Section, Awards */}
+            <div className="flex flex-col items-start text-left">
+              {/* Name */}
               <motion.div
-                initial={{ y: 30, opacity: 0 }}
+                initial={{ x: 50, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 1.1, duration: 0.6 }}
-                className="flex flex-wrap justify-center gap-4"
+                transition={{ delay: 0.5, duration: 0.8, ease: "easeOut" }}
+                className="mb-4"
               >
-                {student.awards.map((award, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: 1.2 + index * 0.15, type: "spring" }}
-                    className="px-6 py-3 rounded-full border-2 border-gold bg-gold/10 backdrop-blur-sm"
-                  >
-                    <span className="ceremony-awards">{award}</span>
-                  </motion.div>
-                ))}
+                <h1 className="ceremony-name text-balance">{student.name}</h1>
               </motion.div>
-            )}
+
+              {/* Section */}
+              <motion.div
+                initial={{ x: 50, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.8, duration: 0.6 }}
+                className="mb-10"
+              >
+                <p className="ceremony-subtitle">{student.section}</p>
+              </motion.div>
+
+              {/* Awards */}
+              {student.awards && student.awards.length > 0 && (
+                <motion.div
+                  initial={{ x: 50, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 1.1, duration: 0.6 }}
+                  className="flex flex-col gap-4"
+                >
+                  <p className="text-gold/70 font-elegant text-lg uppercase tracking-[0.3em] mb-2">Honors & Awards</p>
+                  {student.awards.map((award, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ scale: 0, x: -20 }}
+                      animate={{ scale: 1, x: 0 }}
+                      transition={{ delay: 1.2 + index * 0.15, type: "spring" }}
+                      className="px-8 py-4 rounded-lg border-2 border-gold bg-gradient-to-r from-gold/20 to-gold/5 backdrop-blur-sm"
+                    >
+                      <span className="text-gold font-display text-2xl md:text-3xl lg:text-4xl font-semibold tracking-wide">{award}</span>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              )}
+            </div>
           </motion.div>
         ) : (
           <motion.div
