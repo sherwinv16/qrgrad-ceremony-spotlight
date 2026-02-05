@@ -14,15 +14,18 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
   const [error, setError] = useState<string | null>(null);
   const [lastScanned, setLastScanned] = useState<string | null>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerIdRef = useRef<string>(`qr-scanner-${Date.now()}`);
+  const isMountedRef = useRef<boolean>(true);
   const scanCooldownRef = useRef<NodeJS.Timeout | null>(null);
 
   const startScanner = useCallback(async () => {
-    if (!containerRef.current || scannerRef.current) return;
+    const containerId = containerIdRef.current;
+    const containerElement = document.getElementById(containerId);
+    if (!containerElement || scannerRef.current) return;
 
     try {
       setError(null);
-      const scanner = new Html5Qrcode('qr-scanner-container');
+      const scanner = new Html5Qrcode(containerId);
       scannerRef.current = scanner;
 
       await scanner.start(
@@ -57,15 +60,19 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
         }
       );
 
-      setIsScanning(true);
+      if (isMountedRef.current) {
+        setIsScanning(true);
+      }
     } catch (err: any) {
       console.error('Scanner error:', err);
-      if (err?.message?.includes('Permission')) {
-        setError('Camera permission denied. Please allow camera access in your browser settings.');
-      } else if (err?.message?.includes('NotFoundError')) {
-        setError('No camera found. Please connect a camera and try again.');
-      } else {
-        setError('Failed to start camera. Please ensure camera permissions are granted.');
+      if (isMountedRef.current) {
+        if (err?.message?.includes('Permission')) {
+          setError('Camera permission denied. Please allow camera access in your browser settings.');
+        } else if (err?.message?.includes('NotFoundError')) {
+          setError('No camera found. Please connect a camera and try again.');
+        } else {
+          setError('Failed to start camera. Please ensure camera permissions are granted.');
+        }
       }
     }
   }, [onScan, lastScanned]);
@@ -73,30 +80,76 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
   const stopScanner = useCallback(async () => {
     if (scannerRef.current) {
       try {
-        await scannerRef.current.stop();
+        const scanner = scannerRef.current;
         scannerRef.current = null;
-        setIsScanning(false);
-        setError(null);
+        
+        // Check if scanner is running before stopping
+        if (scanner.isScanning) {
+          await scanner.stop();
+        }
+        
+        // Clear the container manually to prevent React DOM conflicts
+        const containerId = containerIdRef.current;
+        const containerElement = document.getElementById(containerId);
+        if (containerElement) {
+          containerElement.innerHTML = '';
+        }
+        
+        if (isMountedRef.current) {
+          setIsScanning(false);
+          setError(null);
+        }
       } catch (err) {
         console.error('Error stopping scanner:', err);
+        // Even on error, try to clean up
+        scannerRef.current = null;
+        const containerId = containerIdRef.current;
+        const containerElement = document.getElementById(containerId);
+        if (containerElement) {
+          containerElement.innerHTML = '';
+        }
+        if (isMountedRef.current) {
+          setIsScanning(false);
+        }
       }
     }
   }, []);
 
   useEffect(() => {
+    isMountedRef.current = true;
+    
     return () => {
+      isMountedRef.current = false;
       if (scanCooldownRef.current) {
         clearTimeout(scanCooldownRef.current);
       }
-      stopScanner();
+      // Synchronous cleanup for unmount
+      if (scannerRef.current) {
+        const scanner = scannerRef.current;
+        scannerRef.current = null;
+        
+        // Stop scanner asynchronously but don't wait
+        if (scanner.isScanning) {
+          scanner.stop().catch(() => {});
+        }
+        
+        // Clear container
+        const containerId = containerIdRef.current;
+        const containerElement = document.getElementById(containerId);
+        if (containerElement) {
+          containerElement.innerHTML = '';
+        }
+      }
     };
-  }, [stopScanner]);
+  }, []);
 
   useEffect(() => {
     if (!isEnabled && isScanning) {
       stopScanner();
     }
   }, [isEnabled, isScanning, stopScanner]);
+
+  const containerId = containerIdRef.current;
 
   return (
     <div className="admin-card">
@@ -125,9 +178,8 @@ export const QRScanner = ({ onScan, isEnabled }: QRScannerProps) => {
 
       {isEnabled && (
         <div className="space-y-4">
-          <div 
-            id="qr-scanner-container" 
-            ref={containerRef}
+          <div
+            id={containerId}
             className="w-full aspect-square max-w-sm mx-auto rounded-lg overflow-hidden bg-muted relative"
           >
             {!isScanning && (
